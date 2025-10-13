@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+
+{% block title %}Confirm{% endblock %}
+
+{% block content %}
+    <h2>Confirm</h2>
+
+    <div>
+        <h3>Thank you {{ data['email'] }}</h3>
+        <p>
+            We received your message: <br>
+            {{ data['message'] }}
+        </p>
+    </div>
+{% endblock %}
