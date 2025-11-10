@@ -1,6 +1,7 @@
-from flask import Flask, render_template, request, redirect, session
+from flask import Flask, render_template, request, redirect, session, flash
 from hashlib import md5 
 import sqlite3
+from functools import wraps
 
 app = Flask(__name__) 
 app.config['SESSION_TYPE'] = 'filesystem'
@@ -24,6 +25,19 @@ cursor.execute("""
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
                """)
+
+def roles_permitted(roles):
+     def decorator(f):
+         @wraps(f) 
+         def wrapper(*args, **kwargs):
+             if 'userid' in session and session['role'] in roles:
+                 return f(*args, **kwargs)
+             else:
+                 role_str = ''.join(role + ' ' for role in roles)
+                 flash("Need to login to access this page with role " + role_str)
+                 return redirect('/login')
+         return wrapper
+     return decorator
 
 
 @app.route('/')
@@ -72,25 +86,22 @@ def login():
 
 
 @app.route('/profile')
+@roles_permitted(['member'])
 def profile():
-    if 'userid' in session and session['role'] == 'member':
-        
-        cursor = get_db_cursor()
-        user = cursor.execute("SELECT * FROM users WHERE id=?", (session['userid'],)).fetchone()
-        if user:
-            return render_template('profile.html', user=user)
-        else:
-            return "User not found"
-    else: 
+    cursor = get_db_cursor()
+    user = cursor.execute("SELECT * FROM users WHERE id=?", (session['userid'],)).fetchone()
+    if user:
+        return render_template('profile.html', user=user)
+    else:
+        flash("User " + session['userid'] + " not found")
         return redirect('/login')
+    
 
 
 @app.route('/dashboard')
+@roles_permitted(['admin'])
 def dashboard():
-    if 'userid' in session and session['role'] == 'admin':
-        return render_template('dashboard.html')
-    else:
-        return redirect('/login')
+    return render_template('dashboard.html')
     
 
 @app.route('/logout')
