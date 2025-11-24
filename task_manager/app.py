@@ -1,9 +1,24 @@
 from flask import Flask, request, render_template, flash, session, redirect
 import sqlite3 
 import hashlib 
+from functools import wraps
 
 app = Flask(__name__)
+app.config['SESSION_TYPE'] = 'filesystem'
 app.secret_key = "akjdsbkjas&^absdjkajbdkasbdksajbdksadbkbj"
+
+
+def roles_permitted(roles):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            if 'uid' in session and session['role'] in roles:
+                return f(*args, **kwargs)
+            else:
+                flash(f'ERROR: you need {roles} role to access this page')
+                return redirect('/login')
+        return wrapper
+    return decorator
 
 def get_db_conn():
     db = sqlite3.connect('task_manager.db')
@@ -95,6 +110,91 @@ def register():
     else:
         return render_template('register_form.html', username=username)
 
+
+@app.route('/login', methods=[ 'GET', 'POST' ])
+def login():
+    username = ''
+    db = get_db_conn()
+    cursor = db.cursor()
+    if request.method == 'POST':
+        form = request.form
+        username = form['username']
+        password = form['password']
+        user = cursor.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+        if user:
+            hashed_password = hash_password(username, password)
+            if user['password'] == hashed_password:
+                session['uid'] = user['id']
+                session['username'] = user['username']
+                session['role'] = user['role']
+                if user['role'] == 'member':
+                    return redirect('/member')
+                elif user['role'] == 'admin':
+                    return redirect('/admin')
+            else:
+                flash('ERROR: wrong creedentials')
+                return render_template('login_form.html', username=username)
+        else:
+            flash('ERROR: username not found')
+            return render_template('login_form.html', username=username)
+    else: 
+        return render_template('login_form.html', username=username)
+
+
+
+@app.route('/member')
+@roles_permitted(['member'])
+def member():
+    return render_template('member_dashboard.html')
+
+
+
+@app.route('/admin')
+@roles_permitted(['admin'])
+def admin():
+    return render_template('admin_dashboard.html')
+
+    
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect('/login')
+
+
+@app.route('/add/task', methods=[ 'GET', 'POST' ])
+@roles_permitted(['member'])
+def add_task():
+    if request.method == 'POST':
+        pass
+    else:
+        return render_template('add_task.html')
+
+
+
+@app.route('/add/project', methods=[ 'GET', 'POST' ])
+@roles_permitted(['member'])
+def add_project():
+    db = get_db_conn()
+    cursor = db.cursor() 
+    if request.method == 'POST':
+        form = request.form
+        name = form['project_name']
+        descr = form['project_descr'] 
+        cursor.execute("INSERT INTO projects (name, description, user_id) VALUES (?,?,?)",
+                        (name, descr, session['uid']))
+        db.commit()
+        return redirect('/projects')
+    else:
+        return render_template('add_project.html')
+    
+  
+@app.route('/projects')
+@roles_permitted(['member'])  
+def projects():
+    db = get_db_conn()
+    cursor = db.cursor()
+    all_projects = cursor.execute("SELECT * FROM projects WHERE user_id=?", (session['uid'],)).fetchall()
+    return render_template('projects.html', projects=all_projects)
 
 
 if __name__ == '__main__':
