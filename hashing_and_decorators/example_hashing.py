@@ -1,4 +1,4 @@
-from hashlib import md5
+from hashlib import md5, sha512
 
 user1 = "jdoe"
 user2 = "admin"
@@ -16,5 +16,5 @@ print(hashed3.hexdigest())
 
 u = input("Username: ")
 p = input("Password: ")
-hashed = md5((u + p).encode('utf-8'))
+hashed = sha512((u + p).encode('utf-8'))
 print(hashed.hexdigest())
